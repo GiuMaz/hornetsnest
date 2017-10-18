@@ -47,43 +47,71 @@ namespace hornets_nest {
 // OPERATORS //
 ///////////////
 
+struct InitOperator {
+    TwoLevelQueue<vid_t> queue;
+
+    OPERATOR(Vertex& vertex) {
+        vid_t src = vertex.id();
+        queue.insert(src);
+    }
+};
+
 struct PageRankOperator {
     OPERATOR(Vertex& vertex, Edge& edge) {
     }
 };
 //------------------------------------------------------------------------------
 /////////////////
-// BfsTopDown //
+// PageRank//
 /////////////////
 
-BfsTopDown::BfsTopDown(HornetGraph& hornet) :
+PageRank::PageRank(HornetGraph& hornet) :
     StaticAlgorithm(hornet),
     queue(hornet),
     load_balacing(hornet) {
+
+        gpu::allocate(page_rank, hornet.nV());
+        gpu::allocate(residual, hornet.nV());
         reset();
 }
 
-BfsTopDown::~BfsTopDown() {
+PageRank::~PageRank() {
 
 }
 
-void BfsTopDown::reset() {
+void PageRank::reset() {
 
 }
 
-void BfsTopDown::set_parameters(vid_t source) {
+void PageRank::set_parameters(float teleport) {
+    teleport_parameter = teleport;
+    forAllVertices(hornet, InitOperator{queue} );
+    queue.swap();
+    queue.print();
+}
+
+void PageRank::run() {
+    // initialize
+    // TODO
+
+    queue.print();
+    while (queue.size() > 0) {
+        //std::cout << queue.size() << std::endl;
+        //for all edges in "queue" applies the operator "BFSOperator" by using
+        //the load balancing algorithm instantiated in "load_balacing"
+        forAllEdges(hornet, queue,
+                    PageRankOperator {},
+                    load_balacing);
+        queue.swap();
+    }
 
 }
 
-void BfsTopDown::run() {
+void PageRank::release() {
 
 }
 
-void BfsTopDown::release() {
-
-}
-
-bool BfsTopDown::validate() {
+bool PageRank::validate() {
     return false;
 }
 

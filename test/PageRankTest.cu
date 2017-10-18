@@ -21,9 +21,9 @@ int main(int argc, char* argv[]) {
     HornetGraph hornet_graph(hornet_init);
     //hornet_graph.print();
 
-    wageRank page_rank(hornet_graph);
+    PageRank page_rank(hornet_graph);
 
-    page_rank.set_parameters();
+    page_rank.set_parameters(0.85);
 
     Timer<DEVICE> TM;
     cudaProfilerStart();
@@ -37,5 +37,6 @@ int main(int argc, char* argv[]) {
 
     auto is_correct = page_rank.validate();
     std::cout << (is_correct ? "\nCorrect <>\n\n" : "\n! Not Correct\n\n");
+
     return !is_correct;
 }

@@ -44,13 +44,15 @@
 #include "Core/LoadBalancing/ScanBased.cuh"
 #include "Core/LoadBalancing/BinarySearch.cuh"
 #include <Core/GPUCsr/Csr.cuh>
-//#include <Core/GPUHornet/Hornet.cuh>
+#include <Core/GPUHornet/Hornet.cuh>
 
 namespace hornets_nest {
 
 using HornetGraph = gpu::Csr<EMPTY, EMPTY>;
 //using HornetGraph = gpu::Hornet<EMPTY, EMPTY>;
 
+using residual_t = float;
+using rank_t = float;
 using dist_t = int;
 
 class PageRank : public StaticAlgorithm<HornetGraph> {
@@ -62,13 +64,16 @@ public:
     void run()      override;
     void release()  override;
     bool validate() override;
-    void set_parameters();
+    void set_parameters(float teleport);
 
 private:
     TwoLevelQueue<vid_t>        queue;
     load_balacing::BinarySearch load_balacing;
     //load_balacing::VertexBased1 load_balacing;
     //load_balacing::ScanBased load_balacing;
+    residual_t* residual { nullptr };
+    rank_t* page_rank    { nullptr };
+    float teleport_parameter {0.5};
 };
 
 } // namespace hornets_nest
