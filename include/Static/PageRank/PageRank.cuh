@@ -57,23 +57,28 @@ using dist_t = int;
 
 class PageRank : public StaticAlgorithm<HornetGraph> {
 public:
-    PageRank(HornetGraph& hornet);
+    PageRank(HornetGraph& hornet, HornetGraph& inverse);
     ~PageRank();
 
     void reset()    override;
     void run()      override;
     void release()  override;
     bool validate() override;
-    void set_parameters(float teleport);
+    void set_parameters(float teleport, float tresh);
 
 private:
     TwoLevelQueue<vid_t>        queue;
     load_balacing::BinarySearch load_balacing;
+    load_balacing::BinarySearch load_balacing_inverse;
     //load_balacing::VertexBased1 load_balacing;
     //load_balacing::ScanBased load_balacing;
-    residual_t* residual { nullptr };
-    rank_t* page_rank    { nullptr };
-    float teleport_parameter {0.5};
+    residual_t* residual  { nullptr };
+    rank_t* page_rank     { nullptr };
+    degree_t* out_degrees { nullptr };
+    float teleport_parameter {0.85};
+    float threshold          {0.01};
+    //hornet_inverse ;
+    HornetGraph& hornet_inverse;
 };
 
 } // namespace hornets_nest
