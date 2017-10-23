@@ -190,7 +190,7 @@ void PageRank::run() {
         queue.swap();
     }
 
-    float norm = gpu::reduce(page_rank,hornet.nV());
+    float norm = 1.0; //gpu::reduce(page_rank,hornet.nV());
     forAllVertices(
             hornet,
             Normalize {
