@@ -68,8 +68,8 @@ public:
 
 private:
     TwoLevelQueue<vid_t>        queue;
-    load_balacing::BinarySearch load_balacing;
-    load_balacing::BinarySearch load_balacing_inverse;
+    load_balancing::BinarySearch load_balacing;
+    load_balancing::BinarySearch load_balacing_inverse;
     //load_balacing::VertexBased1 load_balacing;
     //load_balacing::ScanBased load_balacing;
     residual_t* residual  { nullptr };

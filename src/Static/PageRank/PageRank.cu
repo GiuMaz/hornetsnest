@@ -204,7 +204,7 @@ void PageRank::release() {
 }
 
 bool PageRank::validate() {
-    gpu::print(page_rank, hornet.nV());
+    gpu::printArray(page_rank, hornet.nV());
     return false;
 }
 

@@ -13,17 +13,17 @@ int main(int argc, char* argv[]) {
     using namespace graph;
     using namespace graph::structure_prop;
 
-    GraphStd<vid_t, eoff_t> graph(REVERSE | DIRECTED);
+    GraphStd<vid_t, eoff_t> graph( DIRECTED | ENABLE_INGOING);
     CommandLineParam cmd(graph, argc, argv);
 
-    HornetInit hornet_init(graph.nV(), graph.nE(), graph.out_offsets_ptr(),
-                           graph.out_edges_ptr());
+    HornetInit hornet_init(graph.nV(), graph.nE(), graph.csr_out_offsets(),
+                           graph.csr_out_edges());
 
     HornetGraph hornet_graph(hornet_init);
 
     HornetInit hornet_init_inverse(graph.nV(), graph.nE(),
-                                   graph.in_offsets_ptr(),
-                                   graph.in_edges_ptr());
+                                   graph.csr_in_offsets(),
+                                   graph.csr_in_edges());
 
     HornetGraph hornet_graph_inverse(hornet_init_inverse);
 
