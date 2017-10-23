@@ -39,6 +39,7 @@
 #include "Core/Auxilary/DuplicateRemoving.cuh"
 #include <GraphIO/GraphStd.hpp>
 #include <GraphIO/BFS.hpp>
+#include <queue>
 
 namespace hornets_nest {
 
@@ -138,11 +139,13 @@ PageRank::PageRank(HornetGraph& hornet, HornetGraph& inverse) :
 }
 
 PageRank::~PageRank() {
-
+    gpu::free(residual);
+    gpu::free(page_rank);
+    gpu::free(out_degrees);
 }
 
 void PageRank::reset() {
-
+    queue.clear();
 }
 
 void PageRank::set_parameters(float teleport, float tresh) {
@@ -200,11 +203,69 @@ void PageRank::run() {
 }
 
 void PageRank::release() {
-
+    gpu::free(residual);
+    gpu::free(page_rank);
+    gpu::free(out_degrees);
+    residual = nullptr;
+    page_rank = nullptr;
+    out_degrees = nullptr;
 }
 
 bool PageRank::validate() {
-    gpu::printArray(page_rank, hornet.nV());
+
+    using namespace graph;
+    GraphStd<vid_t, eoff_t> graph(hornet.csr_offsets(), hornet.nV(),
+                                  hornet.csr_edges(), hornet.nE());
+
+    GraphStd<vid_t, eoff_t> graph_inverse(hornet_inverse.csr_offsets(), hornet_inverse.nV(),
+                                  hornet_inverse.csr_edges(), hornet_inverse.nE());
+
+    float *page_rank_host = new float(graph.nV());
+    float *residual_host = new float(graph.nV());
+
+    for (size_t i = 0; i < graph.nV(); ++i)
+    {
+        page_rank_host[i] = 1.0f - teleport_parameter;
+        residual_host[i] = 0.0f;
+    }
+
+    for (auto v : graph_inverse.V)
+    {
+        for( auto e : v )
+            residual_host[v.id()] += 1.0f / v.out_degree();
+
+        residual_host[v.id()] += 1.0f / v.out_degree();
+    }
+
+    std::queue<GraphStd<vid_t, eoff_t>::Vertex> queue_host;
+    for (auto v : graph_inverse.V)
+        queue_host.push(v);
+
+    while ( !queue_host.empty() )
+    {
+        auto v = queue_host.front();
+        queue_host.pop();
+        auto new_page_rank_v = page_rank_host[v.id()] + residual_host[v.id()];
+        for ( auto e : v )
+        {
+            auto old_residual_host = residual_host[e.dst_id()];
+            residual_host[e.dst_id()] = residual_host[e.dst_id()] +
+                ( (residual_host[v.id()] * teleport_parameter) / v.out_degree());
+
+            if ( residual_host[e.dst_id()] >= threshold and 
+                    old_residual_host < threshold )
+                queue_host.push(e.dst());
+        }
+        residual_host[v.id()] = 0.0f;
+    }
+
+    float norm = 0.0f;
+    for (size_t i = 0; i < graph.nV(); ++i)
+        norm += page_rank_host[i];
+
+    for (size_t i = 0; i < graph.nV(); ++i)
+        page_rank_host[i] += page_rank_host[i] / norm;
+
     return false;
 }
 
