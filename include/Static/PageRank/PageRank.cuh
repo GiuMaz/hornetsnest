@@ -65,16 +65,18 @@ public:
     void release()  override;
     bool validate() override;
     void set_parameters(float teleport, float tresh);
+    void evaluate_sequential_algorithm();
 
 private:
     TwoLevelQueue<vid_t>        queue;
     load_balancing::BinarySearch load_balacing;
     load_balancing::BinarySearch load_balacing_inverse;
-    //load_balacing::VertexBased1 load_balacing;
-    //load_balacing::ScanBased load_balacing;
-    residual_t* residual  { nullptr };
-    rank_t* page_rank     { nullptr };
-    degree_t* out_degrees { nullptr };
+    //load_balancing::VertexBased load_balacing_inverse;
+    //load_balancing::ScanBased  load_balacing_inverse;
+    residual_t* residual   { nullptr };
+    rank_t* page_rank      { nullptr };
+    degree_t* out_degrees  { nullptr };
+    rank_t* page_rank_host { nullptr };
     float teleport_parameter {0.85};
     float threshold          {0.01};
     //hornet_inverse ;
