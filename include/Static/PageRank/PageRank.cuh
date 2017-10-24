@@ -67,6 +67,7 @@ public:
     void set_parameters(float teleport, float tresh);
     void evaluate_sequential_algorithm();
 
+
 private:
     TwoLevelQueue<vid_t>        queue;
     load_balancing::BinarySearch load_balacing;

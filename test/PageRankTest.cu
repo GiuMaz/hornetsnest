@@ -39,8 +39,20 @@ int main(int argc, char* argv[]) {
 
     TM.stop();
     cudaProfilerStop();
-    TM.print("PageRank");
+    TM.print("PageRank parallelo");
 
+    Timer<HOST> TM2;
+    cudaProfilerStart();
+    TM2.start();
+
+    page_rank.evaluate_sequential_algorithm();
+
+    TM2.stop();
+    cudaProfilerStop();
+    TM2.print("PageRank sequenziale");
+
+
+    std::cout << "speedup: " << (TM2.duration()/TM.duration()) << "x\n";
     auto is_correct = page_rank.validate();
     std::cout << (is_correct ? "\nCorrect <>\n\n" : "\n! Not Correct\n\n");
 
