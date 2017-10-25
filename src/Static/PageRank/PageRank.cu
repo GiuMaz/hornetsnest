@@ -395,15 +395,18 @@ bool PageRank::validate() {
 
     std::cout << std::endl;
     bool is_equal = true;
+    int errori = 0;
     for (int i = 0; i < hornet.nV(); ++i)
     {
-        if ( abs(page_rank_host[i] - gpu_pr[i]) > 0.01)
+        if ( abs(page_rank_host[i] - gpu_pr[i])/page_rank_host[i] > 0.2 )
         {
+            //std::cout << "ERROR! nodo: " << i << "  device: " << gpu_pr[i] << " host: " << page_rank_host[i] << std::endl;
+            ++errori;
             is_equal = false;
-            break;
         }
     }
 
+    std::cout << "percentuale errori: " << (errori * 100.0) /  hornet.nV()<<"%" << std::endl;
     host::free(gpu_pr);
 
     return is_equal;
