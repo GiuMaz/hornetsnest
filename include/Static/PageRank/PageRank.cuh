@@ -49,7 +49,6 @@
 namespace hornets_nest {
 
 using HornetGraph = gpu::Csr<EMPTY, EMPTY>;
-//using HornetGraph = gpu::Hornet<EMPTY, EMPTY>;
 
 using residual_t = float;
 using rank_t = float;
@@ -72,8 +71,6 @@ private:
     TwoLevelQueue<vid_t>        queue;
     load_balancing::BinarySearch load_balacing;
     load_balancing::BinarySearch load_balacing_inverse;
-    //load_balancing::VertexBased load_balacing_inverse;
-    //load_balancing::ScanBased  load_balacing_inverse;
     residual_t* actual_residual   { nullptr };
     residual_t* new_residual      { nullptr };
     rank_t* page_rank             { nullptr };
@@ -81,7 +78,6 @@ private:
     rank_t* page_rank_host        { nullptr };
     float teleport_parameter      {0.85};
     float threshold               {0.01};
-    //hornet_inverse ;
     HornetGraph& hornet_inverse;
 };
 

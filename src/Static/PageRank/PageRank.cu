@@ -81,21 +81,14 @@ struct ResidualReset {
 struct MoveResidual {
     residual_t* actual_residual;
     residual_t* new_residual;
+    TwoLevelQueue<vid_t> queue;
+    float threshold;
 
     OPERATOR(Vertex& vertex) {
         vid_t src = vertex.id();
         actual_residual[src] += new_residual[src];
         new_residual[src] = 0.0;
-    }
-};
 
-struct AddNodeToQueue {
-
-    TwoLevelQueue<vid_t> queue;
-    residual_t* actual_residual;
-    float threshold;
-
-    OPERATOR(Vertex& vertex) {
         if (actual_residual[vertex.id()] > threshold)
             queue.insert(vertex.id());
     }
@@ -238,7 +231,6 @@ void PageRank::set_parameters(float teleport, float tresh) {
 }
 
 void PageRank::run() {
-    // initialize
 
     forAllVertices(
             hornet,
@@ -258,15 +250,7 @@ void PageRank::run() {
             ResidualNormalization {
                 actual_residual,teleport_parameter} );
 
-    //std::cout << "gpu residual: ";
-    //gpu::printArray(residual,hornet.nV());
-    //std::cout << "gpu page_rank: ";
-    //gpu::printArray(page_rank,hornet.nV());
-    //std::cout << "gpu out degree: ";
-    //gpu::printArray(out_degrees,hornet.nV());
-    //std::cout << "gpu queue: ";
     while (queue.size() > 0) {
-        //std::cout << queue.size() << std::endl;
 
         forAllVertices(
                 hornet,
@@ -292,23 +276,16 @@ void PageRank::run() {
                 hornet,
                 MoveResidual {
                     actual_residual,
-                    new_residual
+                    new_residual,
+                    queue,
+                    threshold
                     });
-
-        forAllVertices(
-                hornet,
-                AddNodeToQueue {
-                    queue,actual_residual,threshold});
-
 
         queue.swap();
     }
 
     float *tmp = actual_residual;
     deviceReduce(page_rank,tmp,hornet.nV());
-
-    //std::cout << "gpu pre normalizzazione: ";
-    //gpu::printArray(page_rank,hornet.nV());
 
     forAllVertices(
             hornet,
@@ -358,12 +335,9 @@ void PageRank::evaluate_sequential_algorithm()
 
     for (auto v : graph_inverse.V)
     {
-        //std::cout << "nodo da valutare  " << v.id() << std::endl;
         for( auto e : v )
         {
             residual_host[v.id()] += 1.0f / out_degrees_host[e.dst_id()];
-            //std::cout << " nodo divisore " <<  e.dst_id() << " risultato " <<
-                //residual_host[v.id()] << " out degree " << out_degrees_host[e.dst_id()] << std::endl;
         }
 
         residual_host[v.id()] = (1.0f-teleport_parameter) * teleport_parameter * residual_host[v.id()];
@@ -374,54 +348,26 @@ void PageRank::evaluate_sequential_algorithm()
     for (auto v : graph.V)
         queue_host.push(v);
 
-    //std::cout << "host residual: ";
-    //host::printArray(residual_host,hornet.nV());
-    //std::cout << "host page rank: ";
-    //host::printArray(page_rank_host,hornet.nV());
-    //std::cout << "host out degree: ";
-
-    //for (auto v : graph.V)
-        //std::cout << v.out_degree() << " ";
-    //std::cout << std::endl<< std::endl;
-
-    //std::cout << "host queue: ";
-    //auto copy(queue_host);
-    //while (!copy.empty())
-    //{
-        //std::cout << copy.front() << " ";
-        //copy.pop();
-    //}
-    //std::cout << std::endl<< std::endl;
-
     while ( !queue_host.empty() )
     {
         auto v = queue_host.front();
-        //std::cout << "\tnodo: " << v.id() << std::endl;
         queue_host.pop();
-        //std::cout << "\tpage_rank vecchio: " << page_rank_host[v.id()] << " residuo " << residual_host[v.id()] << std::endl;
         page_rank_host[v.id()] += residual_host[v.id()];
-        //std::cout << "\tpage_rank nuovo: " << page_rank_host[v.id()] << std::endl;
         for ( auto e : v )
         {
-            //std::cout << "\t\tvicino: " << e.dst_id() << std::endl;
             residual_t old_residual_host = residual_host[e.dst_id()];
-            //std::cout << "\t\told residual: " << residual_host[e.dst_id()] << std::endl;
             residual_host[e.dst_id()] +=
                 ( (residual_host[v.id()] * teleport_parameter) / out_degrees_host[v.id()]);
-            //std::cout << "\t\tnew residual: " << residual_host[e.dst_id()] << std::endl;
 
             if ( (residual_host[e.dst_id()] >= threshold) && 
                     (old_residual_host < threshold) )
             {
-                //std::cout << "\t\t\taggiungi nodo " << e.dst_id() << std::endl;
                 queue_host.push(e.dst());
             }
         }
         residual_host[v.id()] = 0.0f;
     }
 
-    //std::cout << "host pre normalizzazione: ";
-    //host::printArray(page_rank_host,hornet.nV());
     float norm = 0.0f;
     for (size_t i = 0; i < graph.nV(); ++i)
         norm += page_rank_host[i];
@@ -441,13 +387,13 @@ bool PageRank::validate() {
 
     gpu::copyToHost(page_rank, hornet.nV(),gpu_pr);
 
-    //std::cout << "valore host: ";
-    //host::printArray(page_rank_host,hornet.nV());
+    std::cout << "valore host (max 20 valori): ";
+    host::printArray(page_rank_host,min(20,hornet.nV()));
 
-    //std::cout << std::endl << "valore gpu: ";
-    //gpu::printArray(page_rank,hornet.nV());
+    std::cout << std::endl << "valore gpu: (max 20 valori) ";
+    gpu::printArray(page_rank,min(20,hornet.nV()));
 
-    //std::cout << std::endl;
+    std::cout << std::endl;
     bool is_equal = true;
     for (int i = 0; i < hornet.nV(); ++i)
     {
