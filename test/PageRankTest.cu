@@ -29,7 +29,7 @@ int main(int argc, char* argv[]) {
 
     PageRank page_rank(hornet_graph, hornet_graph_inverse);
 
-    page_rank.set_parameters(0.85, 0.01);
+    page_rank.set_parameters(0.85, 0.00001);
 
     Timer<DEVICE> TM;
     cudaProfilerStart();
