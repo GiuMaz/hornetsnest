@@ -13,7 +13,7 @@ int main(int argc, char* argv[]) {
     using namespace graph;
     using namespace graph::structure_prop;
 
-    GraphStd<vid_t, eoff_t> graph( DIRECTED | ENABLE_INGOING);
+    GraphStd<vid_t, eoff_t> graph(ENABLE_INGOING);
     CommandLineParam cmd(graph, argc, argv);
 
     HornetInit hornet_init(graph.nV(), graph.nE(), graph.csr_out_offsets(),
@@ -29,7 +29,7 @@ int main(int argc, char* argv[]) {
 
     PageRank page_rank(hornet_graph, hornet_graph_inverse);
 
-    page_rank.set_parameters(0.85, 0.00000001);
+    page_rank.set_parameters(0.85, 0.001);
 
     Timer<DEVICE> TM;
     cudaProfilerStart();

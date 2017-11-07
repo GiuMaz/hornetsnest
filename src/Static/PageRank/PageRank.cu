@@ -61,8 +61,8 @@ struct InitOperator {
 
     OPERATOR(Vertex& vertex) {
         vid_t src = vertex.id();
-        actual_residual[src] = 0.0;
-        new_residual[src] = 0.0;
+        actual_residual[src] = 0.0f;
+        new_residual[src] = 0.0f;
         out_degrees[src] = vertex.degree();
         page_rank[src] = initial_page_rank;
         queue.insert(src);
@@ -74,7 +74,7 @@ struct ResidualReset {
 
     OPERATOR(Vertex& vertex) {
         vid_t src = vertex.id();
-        residual[src] = 0.0;
+        residual[src] = 0.0f;
     }
 };
 
@@ -87,9 +87,9 @@ struct MoveResidual {
     OPERATOR(Vertex& vertex) {
         vid_t src = vertex.id();
         actual_residual[src] += new_residual[src];
-        new_residual[src] = 0.0;
+        new_residual[src] = 0.0f;
 
-        if (actual_residual[vertex.id()] > threshold)
+        if (actual_residual[vertex.id()] >= threshold)
             queue.insert(vertex.id());
     }
 };
@@ -100,7 +100,8 @@ struct ResidualOperation {
 
     OPERATOR(Vertex& vertex, Edge& edge) {
         auto dst = edge.dst_id();
-        atomicAdd(&residual[vertex.id()], (1.0f / out_degrees[dst] ));
+        if (vertex.id() != dst)
+            atomicAdd(&residual[vertex.id()], (1.0f / out_degrees[dst] ));
     }
 };
 
@@ -143,7 +144,8 @@ struct PageRankPropagation {
         auto dst = edge.dst_id();
         auto src = edge.src_id();
 
-        atomicAdd(&new_residual[dst], ( teleport_parameter * actual_residual[src] / out_degrees[src] ));
+        if (vertex.id() != dst)
+            atomicAdd(&new_residual[dst], ( teleport_parameter * (actual_residual[src] / out_degrees[src]) ));
     }
 };
 
@@ -337,7 +339,8 @@ void PageRank::evaluate_sequential_algorithm()
     {
         for( auto e : v )
         {
-            residual_host[v.id()] += 1.0f / out_degrees_host[e.dst_id()];
+            if (e.dst_id() != e.src_id())
+                residual_host[v.id()] += 1.0f / out_degrees_host[e.dst_id()];
         }
 
         residual_host[v.id()] = (1.0f-teleport_parameter) * teleport_parameter * residual_host[v.id()];
@@ -355,14 +358,17 @@ void PageRank::evaluate_sequential_algorithm()
         page_rank_host[v.id()] += residual_host[v.id()];
         for ( auto e : v )
         {
-            residual_t old_residual_host = residual_host[e.dst_id()];
-            residual_host[e.dst_id()] +=
-                ( (residual_host[v.id()] * teleport_parameter) / out_degrees_host[v.id()]);
-
-            if ( (residual_host[e.dst_id()] >= threshold) && 
-                    (old_residual_host < threshold) )
+            if (e.dst_id() != e.src_id())
             {
-                queue_host.push(e.dst());
+                residual_t old_residual_host = residual_host[e.dst_id()];
+                residual_host[e.dst_id()] +=
+                    ( (residual_host[v.id()] * teleport_parameter) / out_degrees_host[v.id()]);
+
+                if ( (residual_host[e.dst_id()] >= threshold) && 
+                        (old_residual_host < threshold) )
+                {
+                    queue_host.push(e.dst());
+                }
             }
         }
         residual_host[v.id()] = 0.0f;
@@ -396,17 +402,50 @@ bool PageRank::validate() {
     std::cout << std::endl;
     bool is_equal = true;
     int errori = 0;
+    int errori_host_maggiore = 0;
+    int errori_device_maggiore  = 0;
+
+    float tot_host = 0.0f;
+    for (int i = 0; i < hornet.nV(); ++i)
+        tot_host += page_rank_host[i];
+
+    float tot_device = 0.0f;
+    for (int i = 0; i < hornet.nV(); ++i)
+        tot_device += gpu_pr[i];
+
+    std::cout << "totale host: " << tot_host << " totale device: " << tot_device << std::endl;
+
+    int host_maggiore = 0;
+    int host_minore = 0;
     for (int i = 0; i < hornet.nV(); ++i)
     {
-        if ( abs(page_rank_host[i] - gpu_pr[i])/page_rank_host[i] > 0.2 )
+        if ( abs(page_rank_host[i] - gpu_pr[i])/page_rank_host[i] > 1 )
         {
             //std::cout << "ERROR! nodo: " << i << "  device: " << gpu_pr[i] << " host: " << page_rank_host[i] << std::endl;
             ++errori;
+            if (gpu_pr[i] > page_rank_host[i])
+                ++errori_device_maggiore;
+            else
+                ++errori_host_maggiore;
+
             is_equal = false;
         }
+        if (gpu_pr[i] > page_rank_host[i])
+            ++host_minore;
+        else
+            ++host_maggiore;
     }
 
-    std::cout << "percentuale errori: " << (errori * 100.0) /  hornet.nV()<<"%" << std::endl;
+    if (errori > 0)
+    {
+        std::cout << "percentuale errori: " << (errori * 100.0) /  hornet.nV()<<"%" << std::endl;
+        std::cout << "il device è maggiore per il : " << ((errori_device_maggiore * 100.0) /  errori)<<"%" << std::endl;
+        std::cout << "l'host  è maggiore per il : " << ((errori_host_maggiore * 100.0) /  errori)<<"%" << std::endl;
+    }
+
+    std::cout << "host maggiore: " << (host_maggiore * 100.0) /  hornet.nV()<<"%" << std::endl;
+
+
     host::free(gpu_pr);
 
     return is_equal;
