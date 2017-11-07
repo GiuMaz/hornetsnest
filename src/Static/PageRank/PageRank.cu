@@ -41,7 +41,7 @@
 #include <GraphIO/BFS.hpp>
 #include <queue>
 #include <iostream>
-#include "Device/WarpReduce.cuh"
+#include "Device/Primitives/WarpReduce.cuh"
 
 
 namespace hornets_nest {
