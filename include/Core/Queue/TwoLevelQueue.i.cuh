@@ -32,10 +32,10 @@
  * POSSIBILITY OF SUCH DAMAGE.
  * </blockquote>}
  */
-#include <Device/Definition.cuh>        //xlib::SMemPerBlock
-#include <Device/PrintExt.cuh>          //xlib::gpu::printArray
-#include <Device/PTX.cuh>              //xlib::__msb
-#include <Device/SafeCudaAPI.cuh>       //cuMemcpyToDeviceAsync
+#include <Device/Util/Definition.cuh>       //xlib::SMemPerBlock
+#include <Device/Util/PrintExt.cuh>         //xlib::gpu::printArray
+#include <Device/Util/PTX.cuh>              //xlib::__msb
+#include <Device/Util/SafeCudaAPI.cuh>      //cuMemcpyToDeviceAsync
 #include <BasicTypes.hpp>
 
 namespace hornets_nest {
@@ -54,10 +54,13 @@ TwoLevelQueue<T>::TwoLevelQueue(const HornetClass& hornet,
                               _max_allocated_items(hornet.nV() * work_factor) {
     static_assert(IsHornet<HornetClass>::value,
                  "TwoLevelQueue paramenter is not an instance of Hornet Class");
-    cuMalloc(_d_queue_ptrs.first, _max_allocated_items);
-    cuMalloc(_d_queue_ptrs.second, _max_allocated_items);
-    cuMalloc(_d_counters, 1);
-    cuMemset0x00(_d_counters);
+    _initialize();
+}
+
+template<typename T>
+TwoLevelQueue<T>::TwoLevelQueue(size_t max_allocated_items) noexcept :
+                        _max_allocated_items(max_allocated_items) {
+    _initialize();
 }
 
 template<typename T>
@@ -77,9 +80,21 @@ TwoLevelQueue<T>::~TwoLevelQueue() noexcept {
 template<typename T>
 template<typename HornetClass>
 void TwoLevelQueue<T>::initialize(const HornetClass& hornet,
-                                 const float work_factors) noexcept {
+                                 const float work_factor) noexcept {
+    _max_allocated_items = hornet.nV() * work_factor;
     static_assert(IsHornet<HornetClass>::value,
                  "TwoLevelQueue paramenter is not an instance of Hornet Class");
+    _initialize();
+}
+
+template<typename T>
+void TwoLevelQueue<T>::initialize(size_t max_allocated_items) noexcept {
+    _max_allocated_items = max_allocated_items;
+    _initialize();
+}
+
+template<typename T>
+void TwoLevelQueue<T>::_initialize() noexcept {
     cuMalloc(_d_queue_ptrs.first, _max_allocated_items);
     cuMalloc(_d_queue_ptrs.second, _max_allocated_items);
     cuMalloc(_d_counters, 1);
@@ -130,7 +145,7 @@ __global__ void swapKernel(int2* d_counters) {
 
 template<typename T>
 void TwoLevelQueue<T>::sync() const noexcept {
-    cuMemcpyToHostAsync(_d_counters, _h_counters);
+    cuMemcpyToHost(_d_counters, _h_counters);
     assert(_h_counters.x < _max_allocated_items && "TwoLevelQueue too small");
     assert(_h_counters.y < _max_allocated_items && "TwoLevelQueue too small");
 }
