@@ -100,8 +100,7 @@ struct ResidualOperation {
 
     OPERATOR(Vertex& vertex, Edge& edge) {
         auto dst = edge.dst_id();
-        if (vertex.id() != dst)
-            atomicAdd(&residual[vertex.id()], (1.0f / out_degrees[dst] ));
+        atomicAdd(&residual[vertex.id()], (1.0f / out_degrees[dst] ));
     }
 };
 
@@ -144,8 +143,7 @@ struct PageRankPropagation {
         auto dst = edge.dst_id();
         auto src = edge.src_id();
 
-        if (vertex.id() != dst)
-            atomicAdd(&new_residual[dst], ( teleport_parameter * (actual_residual[src] / out_degrees[src]) ));
+        atomicAdd(&new_residual[dst], ( teleport_parameter * (actual_residual[src] / out_degrees[src]) ));
     }
 };
 
@@ -339,8 +337,7 @@ void PageRank::evaluate_sequential_algorithm()
     {
         for( auto e : v )
         {
-            if (e.dst_id() != e.src_id())
-                residual_host[v.id()] += 1.0f / out_degrees_host[e.dst_id()];
+            residual_host[v.id()] += 1.0f / out_degrees_host[e.dst_id()];
         }
 
         residual_host[v.id()] = (1.0f-teleport_parameter) * teleport_parameter * residual_host[v.id()];
@@ -358,17 +355,14 @@ void PageRank::evaluate_sequential_algorithm()
         page_rank_host[v.id()] += residual_host[v.id()];
         for ( auto e : v )
         {
-            if (e.dst_id() != e.src_id())
-            {
-                residual_t old_residual_host = residual_host[e.dst_id()];
-                residual_host[e.dst_id()] +=
-                    ( (residual_host[v.id()] * teleport_parameter) / out_degrees_host[v.id()]);
+            residual_t old_residual_host = residual_host[e.dst_id()];
+            residual_host[e.dst_id()] +=
+                ( (residual_host[v.id()] * teleport_parameter) / out_degrees_host[v.id()]);
 
-                if ( (residual_host[e.dst_id()] >= threshold) && 
-                        (old_residual_host < threshold) )
-                {
-                    queue_host.push(e.dst());
-                }
+            if ( (residual_host[e.dst_id()] >= threshold) && 
+                    (old_residual_host < threshold) )
+            {
+                queue_host.push(e.dst());
             }
         }
         residual_host[v.id()] = 0.0f;
