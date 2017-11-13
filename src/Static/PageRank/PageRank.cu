@@ -109,7 +109,8 @@ struct ResidualNormalization {
     float teleport_parameter;
 
     OPERATOR(Vertex& vertex) {
-        residual[vertex.id()] = (1.0f - teleport_parameter ) * teleport_parameter * residual[vertex.id()];
+        residual[vertex.id()] = (1.0f - teleport_parameter ) *
+            teleport_parameter * residual[vertex.id()];
     }
 };
 
@@ -143,7 +144,8 @@ struct PageRankPropagation {
         auto dst = edge.dst_id();
         auto src = edge.src_id();
 
-        atomicAdd(&new_residual[dst], ( teleport_parameter * (actual_residual[src] / out_degrees[src]) ));
+        atomicAdd(&new_residual[dst], (teleport_parameter *
+                    (actual_residual[src] / out_degrees[src])));
     }
 };
 
@@ -152,7 +154,8 @@ struct PageRankPropagation {
 // SUPPORT //
 /////////////
 
-// from https://devblogs.nvidia.com/parallelforall/faster-parallel-reductions-kepler/
+// from
+// https://devblogs.nvidia.com/parallelforall/faster-parallel-reductions-kepler/
 __inline__ __device__
 float blockReduceSum(float val) {
 
@@ -235,28 +238,26 @@ void PageRank::run() {
     forAllVertices(
             hornet,
             InitOperator{
-                queue,actual_residual, new_residual,out_degrees,page_rank,(1-teleport_parameter)} );
+                queue,actual_residual, new_residual,out_degrees,
+                page_rank,(1-teleport_parameter)} );
 
     queue.swap();
 
     forAllEdges(
             hornet_inverse,
-            ResidualOperation{
-                actual_residual,out_degrees},
+            ResidualOperation{ actual_residual,out_degrees},
             load_balacing_inverse );
 
     forAllVertices(
             hornet,
-            ResidualNormalization {
-                actual_residual,teleport_parameter} );
+            ResidualNormalization { actual_residual,teleport_parameter} );
 
     while (queue.size() > 0) {
 
         forAllVertices(
                 hornet,
                 queue,
-                PageRankUpdate {
-                    page_rank, actual_residual});
+                PageRankUpdate { page_rank, actual_residual});
 
         forAllEdges(
                 hornet,
@@ -268,18 +269,12 @@ void PageRank::run() {
         forAllVertices(
                 hornet,
                 queue,
-                ResidualReset {
-                    actual_residual
-                    });
+                ResidualReset { actual_residual });
 
         forAllVertices(
                 hornet,
                 MoveResidual {
-                    actual_residual,
-                    new_residual,
-                    queue,
-                    threshold
-                    });
+                    actual_residual, new_residual, queue, threshold });
 
         queue.swap();
     }
@@ -321,8 +316,8 @@ void PageRank::evaluate_sequential_algorithm()
     GraphStd<vid_t, eoff_t> graph(hornet.csr_offsets(), hornet.nV(),
                                   hornet.csr_edges(), hornet.nE());
 
-    GraphStd<vid_t, eoff_t> graph_inverse(hornet_inverse.csr_offsets(), hornet_inverse.nV(),
-                                  hornet_inverse.csr_edges(), hornet_inverse.nE());
+    GraphStd<vid_t, eoff_t> graph_inverse(hornet_inverse.csr_offsets(),
+            hornet_inverse.nV(), hornet_inverse.csr_edges(), hornet_inverse.nE());
 
     for (size_t i = 0; i < graph.nV(); ++i)
     {
@@ -340,7 +335,8 @@ void PageRank::evaluate_sequential_algorithm()
             residual_host[v.id()] += 1.0f / out_degrees_host[e.dst_id()];
         }
 
-        residual_host[v.id()] = (1.0f-teleport_parameter) * teleport_parameter * residual_host[v.id()];
+        residual_host[v.id()] = (1.0f-teleport_parameter) *
+            teleport_parameter * residual_host[v.id()];
     }
 
     std::queue<graph::GraphStd<vid_t, eoff_t>::Vertex> queue_host;
@@ -357,7 +353,8 @@ void PageRank::evaluate_sequential_algorithm()
         {
             residual_t old_residual_host = residual_host[e.dst_id()];
             residual_host[e.dst_id()] +=
-                ( (residual_host[v.id()] * teleport_parameter) / out_degrees_host[v.id()]);
+                ( (residual_host[v.id()] * teleport_parameter) /
+                  out_degrees_host[v.id()]);
 
             if ( (residual_host[e.dst_id()] >= threshold) && 
                     (old_residual_host < threshold) )
@@ -387,15 +384,15 @@ bool PageRank::validate() {
 
     gpu::copyToHost(page_rank, hornet.nV(),gpu_pr);
 
-    std::cout << "valore host (max 20 valori): ";
+    std::cout << "host values (first 20): ";
     host::printArray(page_rank_host,min(20,hornet.nV()));
 
-    std::cout << std::endl << "valore gpu: (max 20 valori) ";
+    std::cout << std::endl << "device values (first 20): ";
     gpu::printArray(page_rank,min(20,hornet.nV()));
 
     std::cout << std::endl;
     bool is_equal = true;
-    int errori = 0;
+    int number_of_error = 0;
     int errori_host_maggiore = 0;
     int errori_device_maggiore  = 0;
 
@@ -407,16 +404,14 @@ bool PageRank::validate() {
     for (int i = 0; i < hornet.nV(); ++i)
         tot_device += gpu_pr[i];
 
-    std::cout << "totale host: " << tot_host << " totale device: " << tot_device << std::endl;
+    std::cout << "totale host: " << tot_host << " totale device: "
+        << tot_device << std::endl;
 
-    int host_maggiore = 0;
-    int host_minore = 0;
     for (int i = 0; i < hornet.nV(); ++i)
     {
-        if ( abs(page_rank_host[i] - gpu_pr[i])/page_rank_host[i] > 1 )
+        if ( abs(page_rank_host[i] - gpu_pr[i])/page_rank_host[i] > 0.3 )
         {
-            //std::cout << "ERROR! nodo: " << i << "  device: " << gpu_pr[i] << " host: " << page_rank_host[i] << std::endl;
-            ++errori;
+            ++number_of_error;
             if (gpu_pr[i] > page_rank_host[i])
                 ++errori_device_maggiore;
             else
@@ -424,21 +419,11 @@ bool PageRank::validate() {
 
             is_equal = false;
         }
-        if (gpu_pr[i] > page_rank_host[i])
-            ++host_minore;
-        else
-            ++host_maggiore;
     }
 
-    if (errori > 0)
-    {
-        std::cout << "percentuale errori: " << (errori * 100.0) /  hornet.nV()<<"%" << std::endl;
-        std::cout << "il device è maggiore per il : " << ((errori_device_maggiore * 100.0) /  errori)<<"%" << std::endl;
-        std::cout << "l'host  è maggiore per il : " << ((errori_host_maggiore * 100.0) /  errori)<<"%" << std::endl;
-    }
-
-    std::cout << "host maggiore: " << (host_maggiore * 100.0) /  hornet.nV()<<"%" << std::endl;
-
+    if (number_of_error > 0)
+        std::cout << "errors percentage: " << (number_of_error * 100.0) /
+            hornet.nV()<<"%" << std::endl;
 
     host::free(gpu_pr);
 

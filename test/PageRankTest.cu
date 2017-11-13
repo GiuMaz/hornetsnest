@@ -39,7 +39,7 @@ int main(int argc, char* argv[]) {
 
     TM.stop();
     cudaProfilerStop();
-    TM.print("PageRank parallelo");
+    TM.print("device PageRank");
 
     Timer<HOST> TM2;
     cudaProfilerStart();
@@ -49,7 +49,7 @@ int main(int argc, char* argv[]) {
 
     TM2.stop();
     cudaProfilerStop();
-    TM2.print("PageRank sequenziale");
+    TM2.print("host PageRank");
 
 
     std::cout << "speedup: " << (TM2.duration()/TM.duration()) << "x\n";
