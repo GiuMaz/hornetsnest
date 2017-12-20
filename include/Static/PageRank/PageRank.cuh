@@ -73,6 +73,7 @@ private:
     load_balancing::BinarySearch load_balacing_inverse;
     residual_t* actual_residual   { nullptr };
     residual_t* new_residual      { nullptr };
+    residual_t* reduce         { nullptr };
     rank_t* page_rank             { nullptr };
     degree_t* out_degrees         { nullptr };
     rank_t* page_rank_host        { nullptr };

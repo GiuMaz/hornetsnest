@@ -52,7 +52,6 @@ namespace hornets_nest {
 ///////////////
 
 struct InitOperator {
-    TwoLevelQueue<vid_t> queue;
     residual_t* actual_residual;
     residual_t* new_residual;
     degree_t* out_degrees;
@@ -65,7 +64,6 @@ struct InitOperator {
         new_residual[src] = 0.0f;
         out_degrees[src] = vertex.degree();
         page_rank[src] = initial_page_rank;
-        queue.insert(src);
     }
 };
 
@@ -81,16 +79,13 @@ struct ResidualReset {
 struct MoveResidual {
     residual_t* actual_residual;
     residual_t* new_residual;
-    TwoLevelQueue<vid_t> queue;
-    float threshold;
+    residual_t* reduce;
 
     OPERATOR(Vertex& vertex) {
         vid_t src = vertex.id();
         actual_residual[src] += new_residual[src];
         new_residual[src] = 0.0f;
-
-        if (actual_residual[vertex.id()] >= threshold)
-            queue.insert(vertex.id());
+	reduce[src] = 0.0f;
     }
 };
 
@@ -205,7 +200,6 @@ void deviceReduce(float *in, float* out, int N) {
 
 PageRank::PageRank(HornetGraph& hornet, HornetGraph& inverse) :
     StaticAlgorithm(hornet),
-    queue(hornet),
     load_balacing(hornet),
     hornet_inverse(inverse),
     load_balacing_inverse(inverse) {
@@ -213,6 +207,7 @@ PageRank::PageRank(HornetGraph& hornet, HornetGraph& inverse) :
         gpu::allocate(new_residual, hornet.nV());
         gpu::allocate(page_rank, hornet.nV());
         gpu::allocate(out_degrees, hornet.nV());
+        gpu::allocate(reduce, hornet.nV());
         reset();
 }
 
@@ -225,7 +220,6 @@ PageRank::~PageRank() {
 }
 
 void PageRank::reset() {
-    queue.clear();
 }
 
 void PageRank::set_parameters(float teleport, float tresh) {
@@ -238,10 +232,8 @@ void PageRank::run() {
     forAllVertices(
             hornet,
             InitOperator{
-                queue,actual_residual, new_residual,out_degrees,
+                actual_residual, new_residual,out_degrees,
                 page_rank,(1-teleport_parameter)} );
-
-    queue.swap();
 
     forAllEdges(
             hornet_inverse,
@@ -252,42 +244,39 @@ void PageRank::run() {
             hornet,
             ResidualNormalization { actual_residual,teleport_parameter} );
 
-    while (queue.size() > 0) {
+    int iteration = 0;
+    bool over_residual = true;
+    while ( iteration < 100 && over_residual) {
+        ++iteration;
 
-        forAllVertices(
-                hornet,
-                queue,
-                PageRankUpdate { page_rank, actual_residual});
+        forAllVertices( hornet, PageRankUpdate { page_rank, actual_residual});
 
         forAllEdges(
                 hornet,
-                queue,
                 PageRankPropagation {
                     actual_residual,new_residual,out_degrees,teleport_parameter},
                 load_balacing);
 
         forAllVertices(
                 hornet,
-                queue,
                 ResidualReset { actual_residual });
 
         forAllVertices(
                 hornet,
-                MoveResidual {
-                    actual_residual, new_residual, queue, threshold });
+                MoveResidual {actual_residual, new_residual,reduce});
 
-        queue.swap();
+	deviceReduce(actual_residual, reduce, hornet.nV());
+	float tot_residual[1];
+	gpu::copyToHost(reduce, 1,tot_residual);
+	//std::cout << (tot_residual[0]/hornet.nV()) << std::endl;
+	if ( tot_residual[0]/hornet.nV() < threshold ) break;
     }
+    std::cout << "Number of iteration: " << iteration << std::endl;
 
     float *tmp = actual_residual;
     deviceReduce(page_rank,tmp,hornet.nV());
 
-    forAllVertices(
-            hornet,
-            Normalize {
-                page_rank,
-                tmp
-                });
+    forAllVertices( hornet, Normalize { page_rank, tmp });
 }
 
 void PageRank::release() {
